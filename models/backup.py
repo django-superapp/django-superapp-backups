@@ -1,14 +1,22 @@
 from django.db import models
-from django_multitenant.fields import TenantForeignKey
-
-from superapp.apps.backups.storage import PrivateBackupStorage
-from superapp.apps.multi_tenant.models import AppAwareTenantModel
 from django.utils.translation import gettext_lazy as _
-
-from superapp.apps.multi_tenant.utils import get_tenant_model_name
 from django.conf import settings
 
-tenant_model_name = get_tenant_model_name()
+from superapp.apps.backups.storage import PrivateBackupStorage
+
+# Conditional imports for multi-tenant support
+try:
+    from django_multitenant.fields import TenantForeignKey
+    from superapp.apps.multi_tenant.models import AppAwareTenantModel
+    from superapp.apps.multi_tenant.utils import get_tenant_model_name
+    
+    MULTI_TENANT_ENABLED = True
+    tenant_model_name = get_tenant_model_name()
+    BaseModel = AppAwareTenantModel
+except ImportError:
+    MULTI_TENANT_ENABLED = False
+    tenant_model_name = None
+    BaseModel = models.Model
 
 class BackupTypeChoices:
     """
@@ -20,15 +28,8 @@ class BackupTypeChoices:
         for key, backup_type in backup_types.items():
             yield key, backup_type['name']
 
-class Backup(AppAwareTenantModel):
+class Backup(BaseModel):
     name = models.CharField(_("Name"), max_length=100, null=True, blank=True)
-    tenant = TenantForeignKey(
-        tenant_model_name,
-        on_delete=models.SET_NULL,
-        related_name='backups',
-        blank=True,
-        null=True,
-    )
     type = models.CharField(
         _("Backup Type"),
         max_length=50,
@@ -50,8 +51,9 @@ class Backup(AppAwareTenantModel):
     created_at = models.DateTimeField(_("created at"), auto_now_add=True)
     updated_at = models.DateTimeField(_("updated at"), auto_now=True)
 
-    class TenantMeta:
-        tenant_field_name = "tenant_id"
+    if MULTI_TENANT_ENABLED:
+        class TenantMeta:
+            tenant_field_name = "tenant_id"
 
     class Meta:
         verbose_name = _("Backup")
@@ -59,4 +61,18 @@ class Backup(AppAwareTenantModel):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.name} ({self.type} of {self.tenant} from {self.created_at.strftime('%Y-%m-%d %H:%M:%S')})"
+        if MULTI_TENANT_ENABLED and hasattr(self, 'tenant'):
+            return f"{self.name} ({self.type} of {self.tenant} from {self.created_at.strftime('%Y-%m-%d %H:%M:%S')})"
+        else:
+            return f"{self.name} ({self.type} from {self.created_at.strftime('%Y-%m-%d %H:%M:%S')})"
+
+
+# Dynamically add tenant field if multi-tenant is enabled
+if MULTI_TENANT_ENABLED:
+    Backup.add_to_class('tenant', TenantForeignKey(
+        tenant_model_name,
+        on_delete=models.SET_NULL,
+        related_name='backups',
+        blank=True,
+        null=True,
+    ))
