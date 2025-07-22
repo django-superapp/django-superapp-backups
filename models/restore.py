@@ -1,12 +1,11 @@
 from django.conf import settings
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 from django_multitenant.fields import TenantForeignKey
 
 from superapp.apps.backups.models.backup import Backup
 from superapp.apps.backups.storage import PrivateBackupStorage
 from superapp.apps.multi_tenant.models import AppAwareTenantModel
-from django.utils.translation import gettext_lazy as _
-
 from superapp.apps.multi_tenant.utils import get_tenant_model_name
 
 tenant_model_name = get_tenant_model_name()
@@ -54,7 +53,7 @@ class Restore(AppAwareTenantModel):
         choices=RestoreTypeChoices(),
         default='all_models'
     )
-    cleanup_existing_data = models.BooleanField(_("Cleanup existing data"), default=True)
+    cleanup_existing_data = models.BooleanField(_("Cleanup existing data"), default=False)
     done = models.BooleanField(_("Done"), default=False)
 
     started_at = models.DateTimeField(_("Started at"), blank=True, null=True)
