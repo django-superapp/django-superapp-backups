@@ -16,10 +16,22 @@ from django.core.management import call_command
 from django.db import transaction, DEFAULT_DB_ALIAS
 from django.db.models import ForeignKey
 from django.utils import timezone
-from django_multitenant.utils import unset_current_tenant
 
 from superapp.apps.backups.models.restore import Restore
-from superapp.apps.multi_tenant.middleware import set_current_tenant
+
+# Conditional imports for multi-tenant support
+try:
+    from django_multitenant.utils import unset_current_tenant
+    from superapp.apps.multi_tenant.middleware import set_current_tenant
+    MULTI_TENANT_ENABLED = True
+except ImportError:
+    MULTI_TENANT_ENABLED = False
+
+    def unset_current_tenant():
+        pass
+
+    def set_current_tenant(tenant):
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -313,7 +325,7 @@ def process_restore(self, restore_pk):
         unset_current_tenant()
 
         restore = Restore.all_objects.get(pk=restore_pk)
-        tenant = restore.tenant
+        tenant = restore.tenant if MULTI_TENANT_ENABLED else None
         logger.info(f"Processing restore with ID: {restore_pk} for tenant: {tenant}")
 
         # Set tenant context if we have a tenant
@@ -392,7 +404,7 @@ def process_restore(self, restore_pk):
             }
 
             # If we have a tenant, use tenant_loaddata
-            if tenant:
+            if MULTI_TENANT_ENABLED and tenant:
                 options['no_cleanup'] = not restore.cleanup_existing_data
                 options['tenant_pk'] = tenant.pk
                 logger.info(f"Running tenant_loaddata for tenant {tenant.pk}")
