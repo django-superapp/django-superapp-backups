@@ -19,6 +19,26 @@ def extend_superapp_settings(main_settings):
                             'models': '*',
                             'exclude_models_from_import': [],
                         },
+                        'essential_data': {
+                            'name': _('Essential Data'),
+                            'description': _('Backup essential data only'),
+                            'models': [
+                                'my_app.essential_model',
+                            ],
+                            'exclude_models_from_import': [],
+                            'exclude_fields': {
+                                'my_app.essential_model': ['user',],
+                            },
+                            'schedule': {
+                                'enabled': True,
+                                'hour': 3,
+                                'minute': 0,
+                                'day_of_week': 1,  # Monday
+                            },
+                        },
+                    },
+                    'RETENTION': {
+                        'MAX_BACKUPS': 30,
                     },
                 }
             },
@@ -46,21 +66,7 @@ def extend_superapp_settings(main_settings):
         }
     ]
 
-    # Configure Celery Beat schedule for backup tasks
-    import os
-    setup_scheduled_tasks = os.getenv('SETUP_SCHEDULED_TASKS', 'true').lower() == 'true'
-    
-    if setup_scheduled_tasks:
-        from celery.schedules import crontab
-        
-        # Initialize CELERY_BEAT_SCHEDULE if it doesn't exist
-        if 'CELERY_BEAT_SCHEDULE' not in main_settings:
-            main_settings['CELERY_BEAT_SCHEDULE'] = {}
-        
-        # Add backup tasks
-        main_settings['CELERY_BEAT_SCHEDULE'].update({
-            'backups-weekly-essential-backup': {
-                'task': 'backups.automated_weekly_backup',
-                'schedule': crontab(hour=3, minute=0, day_of_week=1),  # Weekly on Monday at 3 AM
-            },
-        })
+    # Configure backup schedules
+    from .schedule import setup_backup_schedules
+    setup_backup_schedules(main_settings)
+
